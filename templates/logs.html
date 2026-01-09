@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>勤怠 - 一覧</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 24px; max-width: 980px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th, td { border-bottom: 1px solid #eee; padding: 10px 8px; text-align: left; }
+    th { background: #fafafa; position: sticky; top: 0; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    input { padding: 8px; }
+    button { padding: 8px 12px; cursor: pointer; }
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: 16px; }
+    .muted { color: #666; }
+    a { color: inherit; }
+  </style>
+</head>
+<body>
+  <div class="row">
+    <h1 style="margin:0;">打刻一覧</h1>
+    <div style="margin-left:auto;">
+      <a href="{{ url_for('index') }}">← 打刻画面へ</a>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <form class="row" method="get" action="{{ url_for('logs') }}">
+      <label>
+        <span class="muted">月で絞り込み（YYYY-MM）</span><br />
+        <input name="month" value="{{ month }}" placeholder="2026-01" />
+      </label>
+      <button type="submit">表示</button>
+      <a class="muted" href="{{ url_for('logs') }}">クリア</a>
+
+      <div style="margin-left:auto; text-align:right;">
+        <div class="muted">合計（計算できた日数：{{ total_days }}日）</div>
+        <div style="font-size:18px;font-weight:700;">{{ total_time }}</div>
+      </div>
+    </form>
+
+    <table>
+      <thead>
+        <tr>
+          <th>日付</th>
+          <th>出勤</th>
+          <th>退勤</th>
+          <th>勤務時間</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+          <tr>
+            <td>{{ r.work_date }}</td>
+            <td>{{ r.clock_in }}</td>
+            <td>{{ r.clock_out }}</td>
+            <td>{{ r.work_time }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>

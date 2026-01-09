@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>勤怠 - 打刻</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 24px; max-width: 760px; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    button { padding: 10px 14px; cursor: pointer; }
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: 16px; margin-top: 16px; }
+    .msg { padding: 10px 12px; border-radius: 8px; margin: 10px 0; }
+    .success { background: #e9f8ee; border: 1px solid #bfe7c9; }
+    .warning { background: #fff7e6; border: 1px solid #f2d3a2; }
+    .error { background: #ffecec; border: 1px solid #f3b1b1; }
+    .muted { color: #666; }
+    a { color: inherit; }
+  </style>
+</head>
+<body>
+  <h1>勤怠（自分用）</h1>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="msg {{category}}">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <div class="muted">今日</div>
+        <div style="font-size: 20px; font-weight: 700;">{{ today }}</div>
+      </div>
+      <div style="margin-left:auto;">
+        <a href="{{ url_for('logs') }}">打刻一覧へ →</a>
+      </div>
+    </div>
+
+    <hr style="margin:16px 0; border:none; border-top:1px solid #eee;" />
+
+    <div class="row">
+      <form method="post" action="{{ url_for('clock_in') }}">
+        <button type="submit" {% if row and row.clock_in %}disabled{% endif %}>出勤</button>
+      </form>
+      <form method="post" action="{{ url_for('clock_out') }}">
+        <button type="submit"
+          {% if not row or not row.clock_in or row.clock_out %}disabled{% endif %}>
+          退勤
+        </button>
+      </form>
+
+      <div style="margin-left:auto;">
+        <div class="muted">現在時刻</div>
+        <div id="now" style="font-size:18px;font-weight:700;"></div>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;">
+      <div class="muted">今日の打刻</div>
+      <ul>
+        <li>出勤：{{ row.clock_in if row and row.clock_in else "-" }}</li>
+        <li>退勤：{{ row.clock_out if row and row.clock_out else "-" }}</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    const el = document.getElementById("now");
+    function pad(n){ return String(n).padStart(2, "0"); }
+    function tick(){
+      const d = new Date();
+      el.textContent = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+    tick();
+    setInterval(tick, 1000);
+  </script>
+</body>
+</html>
