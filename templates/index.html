@@ -43,11 +43,11 @@
 
     <div class="row">
       <form method="post" action="{{ url_for('clock_in') }}">
-        <button type="submit" {% if row and row.clock_in %}disabled{% endif %}>出勤</button>
+        <button type="submit" {% if last_record and not last_record.clock_out %}disabled{% endif %}>出勤</button>
       </form>
       <form method="post" action="{{ url_for('clock_out') }}">
         <button type="submit"
-          {% if not row or not row.clock_in or row.clock_out %}disabled{% endif %}>
+          {% if not last_record or not last_record.clock_in or last_record.clock_out %}disabled{% endif %}>
           退勤
         </button>
       </form>
@@ -60,10 +60,28 @@
 
     <div style="margin-top:16px;">
       <div class="muted">今日の打刻</div>
-      <ul>
-        <li>出勤：{{ row.clock_in if row and row.clock_in else "-" }}</li>
-        <li>退勤：{{ row.clock_out if row and row.clock_out else "-" }}</li>
-      </ul>
+      {% if records %}
+        <table style="width:100%; margin-top:8px; border-collapse:collapse;">
+          <thead>
+            <tr style="background:#f5f5f5;">
+              <th style="padding:6px; text-align:left; border:1px solid #ddd;">#</th>
+              <th style="padding:6px; text-align:left; border:1px solid #ddd;">出勤</th>
+              <th style="padding:6px; text-align:left; border:1px solid #ddd;">退勤</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for rec in records %}
+            <tr>
+              <td style="padding:6px; border:1px solid #ddd;">{{ loop.index }}</td>
+              <td style="padding:6px; border:1px solid #ddd;">{{ rec.clock_in or "-" }}</td>
+              <td style="padding:6px; border:1px solid #ddd;">{{ rec.clock_out or "-" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p style="color:#999; margin-top:8px;">打刻記録がありません</p>
+      {% endif %}
     </div>
   </div>
 

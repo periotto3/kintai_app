@@ -35,12 +35,14 @@ def init_db() -> None:
         """
         CREATE TABLE IF NOT EXISTS work_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            work_date TEXT NOT NULL UNIQUE,     -- YYYY-MM-DD
+            work_date TEXT NOT NULL,            -- YYYY-MM-DD
             clock_in TEXT,                      -- ISO datetime string
-            clock_out TEXT                      -- ISO datetime string
+            clock_out TEXT,                     -- ISO datetime string
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
         """
     )
+    db.execute("CREATE INDEX IF NOT EXISTS idx_work_date ON work_logs(work_date);")
     db.commit()
 
 @app.before_request
@@ -85,29 +87,39 @@ def fmt_minutes(m: Optional[int]) -> str:
 def index():
     d = today_str()
     db = get_db()
-    row = db.execute("SELECT * FROM work_logs WHERE work_date = ?", (d,)).fetchone()
-    return render_template("index.html", today=d, row=row)
+    rows = db.execute(
+        "SELECT * FROM work_logs WHERE work_date = ? ORDER BY id",
+        (d,)
+    ).fetchall()
+    
+    # 最後の打刻レコードを取得
+    last_record = rows[-1] if rows else None
+    
+    return render_template("index.html", today=d, records=rows, last_record=last_record)
 
 @app.post("/clock-in")
 def clock_in():
     d = today_str()
     db = get_db()
-    row = db.execute("SELECT * FROM work_logs WHERE work_date = ?", (d,)).fetchone()
-
-    if row and row["clock_in"]:
-        flash("すでに出勤打刻があります。", "warning")
+    
+    # 最後のレコードを確認
+    last = db.execute(
+        "SELECT * FROM work_logs WHERE work_date = ? ORDER BY id DESC LIMIT 1",
+        (d,)
+    ).fetchone()
+    
+    # 最後のレコードが退勤済みでない場合は警告
+    if last and not last["clock_out"]:
+        flash("先に退勤打刻をしてください。", "warning")
         return redirect(url_for("index"))
-
+    
     ts = now_iso()
-    if row is None:
-        db.execute(
-            "INSERT INTO work_logs(work_date, clock_in, clock_out) VALUES (?, ?, NULL)",
-            (d, ts),
-        )
-    else:
-        db.execute("UPDATE work_logs SET clock_in = ? WHERE work_date = ?", (ts, d))
+    db.execute(
+        "INSERT INTO work_logs(work_date, clock_in, clock_out) VALUES (?, ?, NULL)",
+        (d, ts),
+    )
     db.commit()
-
+    
     flash(f"出勤打刻しました：{ts}", "success")
     return redirect(url_for("index"))
 
@@ -115,20 +127,28 @@ def clock_in():
 def clock_out():
     d = today_str()
     db = get_db()
-    row = db.execute("SELECT * FROM work_logs WHERE work_date = ?", (d,)).fetchone()
-
-    if row is None or not row["clock_in"]:
+    
+    # 最後のレコードを確認
+    last = db.execute(
+        "SELECT * FROM work_logs WHERE work_date = ? ORDER BY id DESC LIMIT 1",
+        (d,)
+    ).fetchone()
+    
+    if not last or not last["clock_in"]:
         flash("先に出勤打刻をしてください。", "error")
         return redirect(url_for("index"))
-
-    if row["clock_out"]:
-        flash("すでに退勤打刻があります。", "warning")
+    
+    if last["clock_out"]:
+        flash("すでに退勤打刻があります。新しい出勤打刻をしてください。", "warning")
         return redirect(url_for("index"))
-
+    
     ts = now_iso()
-    db.execute("UPDATE work_logs SET clock_out = ? WHERE work_date = ?", (ts, d))
+    db.execute(
+        "UPDATE work_logs SET clock_out = ? WHERE id = ?",
+        (ts, last["id"])
+    )
     db.commit()
-
+    
     flash(f"退勤打刻しました：{ts}", "success")
     return redirect(url_for("index"))
 
@@ -140,36 +160,47 @@ def logs():
     if month:
         # SQLite で YYYY-MM の前方一致
         rows = db.execute(
-            "SELECT * FROM work_logs WHERE work_date LIKE ? ORDER BY work_date DESC",
+            "SELECT * FROM work_logs WHERE work_date LIKE ? ORDER BY work_date DESC, id",
             (f"{month}-%",),
         ).fetchall()
     else:
-        rows = db.execute("SELECT * FROM work_logs ORDER BY work_date DESC").fetchall()
+        rows = db.execute("SELECT * FROM work_logs ORDER BY work_date DESC, id").fetchall()
 
+    # 日付ごとにグループ化
+    daily_logs = {}
+    for r in rows:
+        d = r["work_date"]
+        if d not in daily_logs:
+            daily_logs[d] = []
+        
+        mins = calc_work_minutes(r["clock_in"], r["clock_out"])
+        daily_logs[d].append({
+            "clock_in": r["clock_in"] or "-",
+            "clock_out": r["clock_out"] or "-",
+            "work_time": fmt_minutes(mins),
+            "minutes": mins or 0
+        })
+    
+    # 各日の合計を計算
     enriched = []
     total_min = 0
-    total_counted = 0
-
-    for r in rows:
-        mins = calc_work_minutes(r["clock_in"], r["clock_out"])
-        if mins is not None:
-            total_min += mins
-            total_counted += 1
-        enriched.append(
-            {
-                "work_date": r["work_date"],
-                "clock_in": r["clock_in"] or "-",
-                "clock_out": r["clock_out"] or "-",
-                "work_time": fmt_minutes(mins),
-            }
-        )
+    
+    for d in sorted(daily_logs.keys(), reverse=True):
+        day_total = sum(rec["minutes"] for rec in daily_logs[d])
+        total_min += day_total
+        
+        enriched.append({
+            "work_date": d,
+            "records": daily_logs[d],
+            "day_total": fmt_minutes(day_total)
+        })
 
     return render_template(
         "logs.html",
-        rows=enriched,
+        daily_logs=enriched,
         month=month or "",
-        total_time=fmt_minutes(total_min if total_counted > 0 else None),
-        total_days=total_counted,
+        total_time=fmt_minutes(total_min),
+        total_days=len(daily_logs),
     )
 
 if __name__ == "__main__":

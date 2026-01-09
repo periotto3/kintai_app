@@ -44,18 +44,28 @@
       <thead>
         <tr>
           <th>日付</th>
+          <th>#</th>
           <th>出勤</th>
           <th>退勤</th>
           <th>勤務時間</th>
         </tr>
       </thead>
       <tbody>
-        {% for r in rows %}
+        {% for day in daily_logs %}
+          {% for rec in day.records %}
           <tr>
-            <td>{{ r.work_date }}</td>
-            <td>{{ r.clock_in }}</td>
-            <td>{{ r.clock_out }}</td>
-            <td>{{ r.work_time }}</td>
+            {% if loop.first %}
+            <td rowspan="{{ day.records|length + 1 }}" style="vertical-align:top; font-weight:700;">{{ day.work_date }}</td>
+            {% endif %}
+            <td>{{ loop.index }}</td>
+            <td>{{ rec.clock_in }}</td>
+            <td>{{ rec.clock_out }}</td>
+            <td>{{ rec.work_time }}</td>
+          </tr>
+          {% endfor %}
+          <tr style="background:#f9f9f9; font-weight:700;">
+            <td colspan="3" style="text-align:right;">日計</td>
+            <td>{{ day.day_total }}</td>
           </tr>
         {% endfor %}
       </tbody>
